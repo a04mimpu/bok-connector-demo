@@ -45,10 +45,19 @@ def main():
                 acks.append({"correlationId":corr,"status":"FAIL","reason":"inga roller matchade reglerna","person":p})
                 logs.append(f"[{corr}] FAIL: inga roller för {p.get('namn')}")
                 continue
-            out_lines.append({
-                "op":"create","externalId":p["personnummer"],
-                "username":username,"displayName":p["namn"],
-                "email":username,"roles":r,"source":"BoK","timestamp":now
+           out_lines.append({
+    "op": "create",                     # eller p.get("op", "create") om du vill styra via input
+    "externalId": p["personnummer"],
+    "username": username,
+    "displayName": p["namn"],
+    "email": username,
+    "roles": r,
+    "jobTitle": p.get("roll"),          # <-- NYTT: Sjuksköterska
+    "area": p.get("enhet"),             # <-- NYTT: Hisingen
+    "source": "BoK",
+    "timestamp": now
+})
+                
             })
             acks.append({"correlationId":corr,"status":"OK","roles":r,
                          "person":{"namn":p["namn"],"personnummer":p["personnummer"]}})
