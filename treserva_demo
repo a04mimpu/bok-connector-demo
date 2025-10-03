@@ -1,0 +1,98 @@
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from typing import List, Optional, Union, Dict
+
+app = FastAPI(title="Treserva Demo", version="0.3")
+
+# Enkel in-memory "databas"
+USERS: Dict[str, Dict] = {}
+
+class Event(BaseModel):
+    op: str = "create"                 # create | update | disable
+    externalId: str
+    username: Optional[str] = None
+    displayName: Optional[str] = None
+    email: Optional[str] = None
+    roles: Optional[List[str]] = []
+    jobTitle: Optional[str] = None     # Tjänst
+    area: Optional[str] = None         # Område
+    source: Optional[str] = "BoK"
+    timestamp: Optional[str] = None
+
+def apply_event(evt: dict) -> None:
+    op = (evt.get("op") or "create").lower()
+    ext = evt["externalId"]
+    if op == "disable":
+        u = USERS.get(ext, {"externalId": ext})
+        u.update({"status": "disabled"})
+        USERS[ext] = u
+    else:
+        USERS[ext] = {
+            "externalId": ext,
+            "username": evt.get("username"),
+            "displayName": evt.get("displayName"),
+            "email": evt.get("email"),
+            "roles": evt.get("roles") or [],
+            "jobTitle": evt.get("jobTitle"),
+            "area": evt.get("area"),
+            "status": "active",
+            "source": evt.get("source", "BoK"),
+        }
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.post("/ingest")
+def ingest(payload: Union[Event, List[Event]]):
+    events = payload if isinstance(payload, list) else [payload]
+    for e in events:
+        apply_event(e.model_dump())    # pydantic v2
+    return {"received": len(events)}
+
+@app.get("/users")
+def users_json():
+    return list(USERS.values())
+
+@app.get("/", response_class=HTMLResponse)
+def ui():
+    rows = "\n".join(
+        (
+            "<tr>"
+            f"<td>{u['externalId']}</td>"
+            f"<td>{u.get('displayName','')}</td>"
+            f"<td>{u.get('jobTitle','')}</td>"
+            f"<td>{u.get('area','')}</td>"
+            f"<td>{u.get('username','')}</td>"
+            f"<td>{u.get('email','')}</td>"
+            f"<td>{', '.join(u.get('roles', [])) or '-'}</td>"
+            f"<td>{u.get('status','')}</td>"
+            "</tr>"
+        )
+        for u in USERS.values()
+    )
+    if not rows:
+        rows = '<tr><td colspan="8">Inga användare ännu – posta till /ingest</td></tr>'
+
+    html = (
+        "<html><head><title>Treserva Demo</title>"
+        "<style>"
+        "body{font-family:system-ui,Segoe UI,Arial;margin:24px}"
+        "table{border-collapse:collapse;width:100%}"
+        "th,td{border:1px solid #ddd;padding:8px}"
+        "th,td{border:1px solid #ddd;padding:8px}"
+        "th{background:#f5f5f5;text-align:left}"
+        "</style></head><body>"
+        "<h2>Treserva Demo</h2>"
+        "<p>POSTa till <code>/ingest</code>, se JSON på <code>/users</code>, eller UI här.</p>"
+        "<table>"
+        "<tr>"
+        "<th>externalId</th><th>Namn</th><th>Tjänst</th><th>Område</th>"
+        "<th>Användarnamn</th><th>Email</th><th>Roller</th><th>Status</th>"
+        "</tr>"
+        f"{rows}"
+        "</table>"
+        "</body></html>"
+    )
+    return HTMLResponse(html)
