@@ -52,7 +52,7 @@ def main():
     "displayName": p["namn"],
     "email": username,
     "roles": r,
-    "jobTitle": p.get("roll"),          # <-- NYTT: Sjuksköterska
+    "jobTitle": p.get("Tjänst"),          # <-- NYTT: Sjuksköterska
     "area": p.get("enhet"),             # <-- NYTT: Hisingen
     "source": "BoK",
     "timestamp": now
